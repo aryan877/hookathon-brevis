@@ -19,7 +19,9 @@
         "typescript": "^5.4.3"
     },
     "dependencies": {
+        "axios": "^1.7.7",
         "brevis-sdk-typescript": "^1.2.5",
+        "dotenv": "^16.4.5",
         "ethers": "^5.5.1"
     }
 }

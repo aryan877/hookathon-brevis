@@ -14,39 +14,34 @@ package dynamicfee
 // 	}
 
 // 	appCircuit := &AppCircuit{
-// 		PoolId:                    sdk.ConstBytes32([]byte("test_pool_id")),
-// 		CurrentTradingFee:         sdk.ConstUint248(3000), // 0.3%
-// 		CurrentLPFee:              sdk.ConstUint248(1000), // 0.1%
-// 		Token0Balance:             sdk.ConstUint248(1000000 * 1e18), // 1,000,000 tokens
-// 		Token1Balance:             sdk.ConstUint248(1000000 * 1e18), // 1,000,000 tokens
-// 		HistoricalVolumes:         [30]sdk.Uint248{sdk.ConstUint248(5000 * 1e18)}, // Example: 5000 tokens
-// 		HistoricalVolatilities:    [30]sdk.Uint248{sdk.ConstUint248(100)},        // Example value
-// 		TotalLiquidity:            sdk.ConstUint248(2000000 * 1e18), // 2,000,000 tokens
-// 		HistoricalLiquidities:     [30]sdk.Uint248{sdk.ConstUint248(2000000 * 1e18)},
-// 		ImpermanentLoss:           sdk.ConstUint248(50), // 0.5%
-// 		HistoricalImpermanentLosses: [30]sdk.Uint248{sdk.ConstUint248(50)},
+// 		PoolId:                      sdk.ConstBytes32([]byte("test_pool_id")),
+// 		CurrentTradingFee:           sdk.ConstUint248(3000), // 0.3%
+// 		CurrentLPFee:                sdk.ConstUint248(1000), // 0.1%
+// 		Token0Balance:               sdk.ConstUint248(1000000 * 1e18),
+// 		Token1Balance:               sdk.ConstUint248(1000000 * 1e18),
+// 		HistoricalVolumes:           [30]sdk.Uint248{},
+// 		HistoricalVolatilities:      [30]sdk.Uint248{},
+// 		TotalLiquidity:              sdk.ConstUint248(2000000 * 1e18),
+// 		HistoricalLiquidities:       [30]sdk.Uint248{},
+// 		ImpermanentLoss:             sdk.ConstUint248(50), // 0.5%
+// 		HistoricalImpermanentLosses: [30]sdk.Uint248{},
+// 		ExternalMarketTrend:         sdk.ConstUint248(100),
 // 	}
 
-// 	appCircuitAssignment := &AppCircuit{
-// 		PoolId:                    appCircuit.PoolId,
-// 		CurrentTradingFee:         appCircuit.CurrentTradingFee,
-// 		CurrentLPFee:              appCircuit.CurrentLPFee,
-// 		Token0Balance:             appCircuit.Token0Balance,
-// 		Token1Balance:             appCircuit.Token1Balance,
-// 		HistoricalVolumes:         appCircuit.HistoricalVolumes,
-// 		HistoricalVolatilities:    appCircuit.HistoricalVolatilities,
-// 		TotalLiquidity:            appCircuit.TotalLiquidity,
-// 		HistoricalLiquidities:     appCircuit.HistoricalLiquidities,
-// 		ImpermanentLoss:           appCircuit.ImpermanentLoss,
-// 		HistoricalImpermanentLosses: appCircuit.HistoricalImpermanentLosses,
+// 	// Fill historical data
+// 	for i := 0; i < 30; i++ {
+// 		appCircuit.HistoricalVolumes[i] = sdk.ConstUint248(5000 * 1e18) // Example: 5000 tokens
+// 		appCircuit.HistoricalVolatilities[i] = sdk.ConstUint248(100)    // Example value
+// 		appCircuit.HistoricalLiquidities[i] = sdk.ConstUint248(2000000 * 1e18)
+// 		appCircuit.HistoricalImpermanentLosses[i] = sdk.ConstUint248(50)
 // 	}
 
-// 	circuitInput, err := app.BuildCircuitInput(appCircuitAssignment)
+// 	circuitInput, err := app.BuildCircuitInput(appCircuit)
 // 	if err != nil {
 // 		t.Fatalf("Failed to build circuit input: %v", err)
 // 	}
 
-// 	test.ProverSucceeded(t, appCircuit, appCircuitAssignment, circuitInput)
+// 	test.ProverSucceeded(t, appCircuit, appCircuit, circuitInput)
 // }
 
 // func TestCircuitEdgeCases(t *testing.T) {
@@ -56,45 +51,55 @@ package dynamicfee
 // 	}
 
 // 	testCases := []struct {
-// 		name   string
+// 		name    string
 // 		circuit *AppCircuit
 // 	}{
 // 		{
 // 			name: "Zero Balances",
 // 			circuit: &AppCircuit{
-// 				PoolId:                    sdk.ConstBytes32([]byte("test_pool_id")),
-// 				CurrentTradingFee:         sdk.ConstUint248(3000),
-// 				CurrentLPFee:              sdk.ConstUint248(1000),
-// 				Token0Balance:             sdk.ConstUint248(0),
-// 				Token1Balance:             sdk.ConstUint248(0),
-// 				HistoricalVolumes:         [30]sdk.Uint248{sdk.ConstUint248(0)},
-// 				HistoricalVolatilities:    [30]sdk.Uint248{sdk.ConstUint248(0)},
-// 				TotalLiquidity:            sdk.ConstUint248(0),
-// 				HistoricalLiquidities:     [30]sdk.Uint248{sdk.ConstUint248(0)},
-// 				ImpermanentLoss:           sdk.ConstUint248(0),
-// 				HistoricalImpermanentLosses: [30]sdk.Uint248{sdk.ConstUint248(0)},
+// 				PoolId:                      sdk.ConstBytes32([]byte("test_pool_id")),
+// 				CurrentTradingFee:           sdk.ConstUint248(3000),
+// 				CurrentLPFee:                sdk.ConstUint248(1000),
+// 				Token0Balance:               sdk.ConstUint248(0),
+// 				Token1Balance:               sdk.ConstUint248(0),
+// 				HistoricalVolumes:           [30]sdk.Uint248{},
+// 				HistoricalVolatilities:      [30]sdk.Uint248{},
+// 				TotalLiquidity:              sdk.ConstUint248(0),
+// 				HistoricalLiquidities:       [30]sdk.Uint248{},
+// 				ImpermanentLoss:             sdk.ConstUint248(0),
+// 				HistoricalImpermanentLosses: [30]sdk.Uint248{},
+// 				ExternalMarketTrend:         sdk.ConstUint248(0),
 // 			},
 // 		},
 // 		{
 // 			name: "Max Values",
 // 			circuit: &AppCircuit{
-// 				PoolId:                    sdk.ConstBytes32([]byte("test_pool_id")),
-// 				CurrentTradingFee:         sdk.ConstUint248(10000), // 1% (max allowed)
-// 				CurrentLPFee:              sdk.ConstUint248(10000), // 1% (max allowed)
-// 				Token0Balance:             sdk.ConstUint248((1 << 248) - 1),
-// 				Token1Balance:             sdk.ConstUint248((1 << 248) - 1),
-// 				HistoricalVolumes:         [30]sdk.Uint248{sdk.ConstUint248((1 << 248) - 1)},
-// 				HistoricalVolatilities:    [30]sdk.Uint248{sdk.ConstUint248((1 << 248) - 1)},
-// 				TotalLiquidity:            sdk.ConstUint248((1 << 248) - 1),
-// 				HistoricalLiquidities:     [30]sdk.Uint248{sdk.ConstUint248((1 << 248) - 1)},
-// 				ImpermanentLoss:           sdk.ConstUint248((1 << 248) - 1),
-// 				HistoricalImpermanentLosses: [30]sdk.Uint248{sdk.ConstUint248((1 << 248) - 1)},
+// 				PoolId:                      sdk.ConstBytes32([]byte("test_pool_id")),
+// 				CurrentTradingFee:           sdk.ConstUint248(10000),
+// 				CurrentLPFee:                sdk.ConstUint248(10000),
+// 				Token0Balance:               sdk.ConstUint248(1e18),
+// 				Token1Balance:               sdk.ConstUint248(1e18),
+// 				HistoricalVolumes:           [30]sdk.Uint248{},
+// 				HistoricalVolatilities:      [30]sdk.Uint248{},
+// 				TotalLiquidity:              sdk.ConstUint248(1e18),
+// 				HistoricalLiquidities:       [30]sdk.Uint248{},
+// 				ImpermanentLoss:             sdk.ConstUint248(1e18),
+// 				HistoricalImpermanentLosses: [30]sdk.Uint248{},
+// 				ExternalMarketTrend:         sdk.ConstUint248(10000),
 // 			},
 // 		},
 // 	}
 
 // 	for _, tc := range testCases {
 // 		t.Run(tc.name, func(t *testing.T) {
+// 			// Fill historical data for edge cases
+// 			for i := 0; i < 30; i++ {
+// 				tc.circuit.HistoricalVolumes[i] = tc.circuit.Token0Balance
+// 				tc.circuit.HistoricalVolatilities[i] = tc.circuit.CurrentTradingFee
+// 				tc.circuit.HistoricalLiquidities[i] = tc.circuit.TotalLiquidity
+// 				tc.circuit.HistoricalImpermanentLosses[i] = tc.circuit.ImpermanentLoss
+// 			}
+
 // 			circuitInput, err := app.BuildCircuitInput(tc.circuit)
 // 			if err != nil {
 // 				t.Fatalf("Failed to build circuit input: %v", err)
