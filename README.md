@@ -1,87 +1,101 @@
-# Brevis Quickstart Typescript
+# SuperFluidSwapper Brevis Integration
 
-This repo contains a simple end-to-end brevis application
-that proves the account age for a given user and handles the attested age in an app contract.
+This repository contains the Brevis Network integration and ZK circuit implementations for the SuperFluidSwapper project.
 
-## Environment Requirements
+## Key Components
 
-- Go >= 1.20
-- Node.js LTS
+- ZK circuit implementation for fee adjustment proofs
+- Off-chain data processing and proof generation
+- Integration with Brevis Network SDK
 
-## [Prover](./prover)
+## Prerequisites
 
-The prover service is a standalone process that is run on a server, preferably as a systemd managed process so that it can be auto restarted if any crash happens. The prover service is designed to be used in conjunction with [brevis-network/brevis-sdk-typescript](https://github.com/brevis-network/brevis-sdk-typescript). 
+- Go (v1.20 or later)
+- Node.js (v14 or later)
+- Yarn package manager
 
-### Start Prover (for testing)
+## Quick Start
 
-```bash
-cd prover
-make start
+1. Clone the repository:
+
+   ```
+   git clone https://github.com/aryan877/hookathon-brevis.git
+   cd hookathon-brevis
+   ```
+
+2. Install Go dependencies:
+
+   ```
+   go mod tidy
+   ```
+
+3. Install Node.js dependencies:
+
+   ```
+   yarn install
+   ```
+
+4. Set up environment variables:
+   Create a `.env` file in the root directory and add the following:
+   ```
+   BREVIS_API_KEY=your_brevis_api_key
+   PROVER_ENDPOINT=your_prover_endpoint
+   ```
+
+## Project Structure
+
+- `app/`: Contains the TypeScript application for interacting with the Brevis SDK
+  - `src/index.ts`: Main script for fetching data, generating proofs, and updating fees
+- `prover/`: Contains the Go implementation of the ZK circuit and prover
+  - `circuits/`: ZK circuit implementation
+    - `circuit.go`: Main circuit logic for fee adjustment
+    - `circuit_test.go`: Tests for the circuit
+
+## Running the Prover
+
+To start the local prover service:
+
+```
+go run cmd/prover/main.go
 ```
 
-### Start Prover with Systemd (in production on linux server)
+## Generating Proofs
 
-You may want to have a process daemon to manage the prover services in production. The [Makefile](prover/Makefileefile) in the project root contains some convenience scripts. 
+To generate a proof:
 
-To build, init systemd, and start both prover processes, run the following command. Note it requires sudo privilege because we want to use systemd commands
-
-```bash
-cd prover
-make deploy
+```
+yarn generate-proof
 ```
 
-# [App](./app)
+## Testing
 
-The Node.js project in ./app is a simple program that does the following things:
+Run the Go test suite:
 
-1. call the Go prover with some transaction data to generate an account age proof
-2. call Brevis backend service and submit the account age proof
-3. wait until the final proof is submitted on-chain and our contract is called
-
-## How to Run
-
-```bash
-cd app
-npm run start [TransactionHash]
 ```
-Example for Normal Flow
-```bash
-npm run start 0x02869126ca667c76e819078d5326feb5d17f276ce5786de47e78334f15530e74
+go test ./...
 ```
 
-Example for Brevis Partner Flow
-```bash
-npm run start 0x02869126ca667c76e819078d5326feb5d17f276ce5786de47e78334f15530e74 TEST_ACCOUNT_AGE_KEY 0xeec66d9b615ff84909be1cb1fe633cc26150417d
-```
+This will run tests including those in `prover/circuits/circuit_test.go`.
 
-# [Contracts](./contracts)
+## Scripts
 
-The app contract [AccountAge.sol](./contracts/contracts/AccountAge.sol) is called
-after you submit proof is submitted to Brevis when Brevis'
-systems submit the final proof on-chain.
-It does the following things when handling the callback:
+- `yarn build`: Build the TypeScript files
+- `yarn lint`: Run ESLint
+- `yarn format`: Format the code using Prettier
 
-1. checks the proof was associated with the correct vk hash
-2. decodes the circuit output
-3. emit a simple event
+## Brevis SDK Integration
 
-## Init
+The project uses the Brevis SDK for ZK proof generation and verification. The main integration can be found in `app/src/index.ts`.
 
-```bash
-cd contracts
-npm install
-```
+## Key Files
 
-## Test
+- `prover/circuits/circuit.go`: Implements the ZK circuit for fee adjustment calculations
+- `app/src/index.ts`: Off-chain script for data fetching, proof generation, and fee updates
 
-```bash
-npm run test
-```
+## Contributing
 
-## Deploy
+Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduct and the process for submitting pull requests.
 
-Rename `.env.template` to `.env`. Fill in the required env vars.
+## License
 
-```bash
-npx hardhat deploy --network sepolia --tags AccountAge
-```
+This project is licensed under the MIT License - see the [LICENS
