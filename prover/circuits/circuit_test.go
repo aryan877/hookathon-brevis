@@ -1,111 +1,156 @@
 package dynamicfee
 
-// import (
-// 	"testing"
+import (
+	"math/big"
+	"testing"
 
-// 	"github.com/brevis-network/brevis-sdk/sdk"
-// 	"github.com/brevis-network/brevis-sdk/test"
-// )
+	"github.com/brevis-network/brevis-sdk/sdk"
+	"github.com/brevis-network/brevis-sdk/test"
+	"github.com/consensys/gnark/frontend"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+)
 
-// func TestCircuit(t *testing.T) {
-// 	app, err := sdk.NewBrevisApp()
-// 	if err != nil {
-// 		t.Fatalf("Failed to create Brevis app: %v", err)
-// 	}
+func TestAppCircuit(t *testing.T) {
+	app, err := sdk.NewBrevisApp()
+	if err != nil {
+		t.Fatalf("Failed to create BrevisApp: %v", err)
+	}
 
-// 	appCircuit := &AppCircuit{
-// 		PoolId:                      sdk.ConstBytes32([]byte("test_pool_id")),
-// 		CurrentTradingFee:           sdk.ConstUint248(3000), // 0.3%
-// 		CurrentLPFee:                sdk.ConstUint248(1000), // 0.1%
-// 		Token0Balance:               sdk.ConstUint248(1000000 * 1e18),
-// 		Token1Balance:               sdk.ConstUint248(1000000 * 1e18),
-// 		HistoricalVolumes:           [30]sdk.Uint248{},
-// 		HistoricalVolatilities:      [30]sdk.Uint248{},
-// 		TotalLiquidity:              sdk.ConstUint248(2000000 * 1e18),
-// 		HistoricalLiquidities:       [30]sdk.Uint248{},
-// 		ImpermanentLoss:             sdk.ConstUint248(50), // 0.5%
-// 		HistoricalImpermanentLosses: [30]sdk.Uint248{},
-// 		ExternalMarketTrend:         sdk.ConstUint248(100),
-// 	}
+	// Constants
+	hookAddress := common.HexToAddress("0xCb38F69700054D326Ecc89ef2486255b528ffCAa5f")
+	poolDataUpdatedEventID := common.HexToHash("0xd0f41fd5b4d393ea3222f2ecd77d99386e8ad292339ad0bbc6e3e5530e5e059e")
+	poolId := sdk.Bytes32{Val: [2]frontend.Variable{
+		frontend.Variable("0x0000000000000000000000000000000000000000"),
+		frontend.Variable("0x000000000000000000000001"),
+	}}
 
-// 	// Fill historical data
-// 	for i := 0; i < 30; i++ {
-// 		appCircuit.HistoricalVolumes[i] = sdk.ConstUint248(5000 * 1e18) // Example: 5000 tokens
-// 		appCircuit.HistoricalVolatilities[i] = sdk.ConstUint248(100)    // Example value
-// 		appCircuit.HistoricalLiquidities[i] = sdk.ConstUint248(2000000 * 1e18)
-// 		appCircuit.HistoricalImpermanentLosses[i] = sdk.ConstUint248(50)
-// 	}
+	// Mock data
+	volume := big.NewInt(1000000)
+	volatility := big.NewInt(100)
+	liquidity := big.NewInt(10000000)
+	impermanentLoss := big.NewInt(50000)
 
-// 	circuitInput, err := app.BuildCircuitInput(appCircuit)
-// 	if err != nil {
-// 		t.Fatalf("Failed to build circuit input: %v", err)
-// 	}
+	txHash := common.HexToHash("0x1234567890123456789012345678901234567890123456789012345678901234")
 
-// 	test.ProverSucceeded(t, appCircuit, appCircuit, circuitInput)
-// }
+	// Add transaction
+	app.AddTransaction(sdk.TransactionData{
+		Hash:                txHash,
+		ChainId:             big.NewInt(1),
+		BlockNum:            big.NewInt(12345678),
+		Nonce:               100,
+		GasTipCapOrGasPrice: common.Big0,
+		GasFeeCap:           common.Big0,
+		Value:               common.Big0,
+		From:                common.Address{},
+		To:                  hookAddress,
+		GasLimit:            100000,
+	})
 
-// func TestCircuitEdgeCases(t *testing.T) {
-// 	app, err := sdk.NewBrevisApp()
-// 	if err != nil {
-// 		t.Fatalf("Failed to create Brevis app: %v", err)
-// 	}
+	// Add receipt
+	app.AddReceipt(sdk.ReceiptData{
+		BlockNum: big.NewInt(12345678),
+		TxHash:   txHash,
+		Fields: [sdk.NumMaxLogFields]sdk.LogFieldData{
+			{
+				Contract:   hookAddress,
+				LogIndex:   0,
+				EventID:    poolDataUpdatedEventID,
+				IsTopic:    false,
+				FieldIndex: 0,
+				Value:      common.HexToHash(hexutil.EncodeBig(volume)),
+			},
+			{
+				Contract:   hookAddress,
+				LogIndex:   0,
+				EventID:    poolDataUpdatedEventID,
+				IsTopic:    false,
+				FieldIndex: 1,
+				Value:      common.HexToHash(hexutil.EncodeBig(volatility)),
+			},
+			{
+				Contract:   hookAddress,
+				LogIndex:   0,
+				EventID:    poolDataUpdatedEventID,
+				IsTopic:    false,
+				FieldIndex: 2,
+				Value:      common.HexToHash(hexutil.EncodeBig(liquidity)),
+			},
+			{
+				Contract:   hookAddress,
+				LogIndex:   0,
+				EventID:    poolDataUpdatedEventID,
+				IsTopic:    false,
+				FieldIndex: 3,
+				Value:      common.HexToHash(hexutil.EncodeBig(impermanentLoss)),
+			},
+		},
+	})
 
-// 	testCases := []struct {
-// 		name    string
-// 		circuit *AppCircuit
-// 	}{
-// 		{
-// 			name: "Zero Balances",
-// 			circuit: &AppCircuit{
-// 				PoolId:                      sdk.ConstBytes32([]byte("test_pool_id")),
-// 				CurrentTradingFee:           sdk.ConstUint248(3000),
-// 				CurrentLPFee:                sdk.ConstUint248(1000),
-// 				Token0Balance:               sdk.ConstUint248(0),
-// 				Token1Balance:               sdk.ConstUint248(0),
-// 				HistoricalVolumes:           [30]sdk.Uint248{},
-// 				HistoricalVolatilities:      [30]sdk.Uint248{},
-// 				TotalLiquidity:              sdk.ConstUint248(0),
-// 				HistoricalLiquidities:       [30]sdk.Uint248{},
-// 				ImpermanentLoss:             sdk.ConstUint248(0),
-// 				HistoricalImpermanentLosses: [30]sdk.Uint248{},
-// 				ExternalMarketTrend:         sdk.ConstUint248(0),
-// 			},
-// 		},
-// 		{
-// 			name: "Max Values",
-// 			circuit: &AppCircuit{
-// 				PoolId:                      sdk.ConstBytes32([]byte("test_pool_id")),
-// 				CurrentTradingFee:           sdk.ConstUint248(10000),
-// 				CurrentLPFee:                sdk.ConstUint248(10000),
-// 				Token0Balance:               sdk.ConstUint248(1e18),
-// 				Token1Balance:               sdk.ConstUint248(1e18),
-// 				HistoricalVolumes:           [30]sdk.Uint248{},
-// 				HistoricalVolatilities:      [30]sdk.Uint248{},
-// 				TotalLiquidity:              sdk.ConstUint248(1e18),
-// 				HistoricalLiquidities:       [30]sdk.Uint248{},
-// 				ImpermanentLoss:             sdk.ConstUint248(1e18),
-// 				HistoricalImpermanentLosses: [30]sdk.Uint248{},
-// 				ExternalMarketTrend:         sdk.ConstUint248(10000),
-// 			},
-// 		},
-// 	}
+	// Initialize AppCircuit
+	appCircuit := &AppCircuit{
+		PoolId: poolId,
+	}
+	appCircuitAssignment := &AppCircuit{
+		PoolId: poolId,
+	}
 
-// 	for _, tc := range testCases {
-// 		t.Run(tc.name, func(t *testing.T) {
-// 			// Fill historical data for edge cases
-// 			for i := 0; i < 30; i++ {
-// 				tc.circuit.HistoricalVolumes[i] = tc.circuit.Token0Balance
-// 				tc.circuit.HistoricalVolatilities[i] = tc.circuit.CurrentTradingFee
-// 				tc.circuit.HistoricalLiquidities[i] = tc.circuit.TotalLiquidity
-// 				tc.circuit.HistoricalImpermanentLosses[i] = tc.circuit.ImpermanentLoss
-// 			}
+	in, err := app.BuildCircuitInput(appCircuit)
+	if err != nil {
+		t.Fatalf("Failed to build circuit input: %v", err)
+	}
 
-// 			circuitInput, err := app.BuildCircuitInput(tc.circuit)
-// 			if err != nil {
-// 				t.Fatalf("Failed to build circuit input: %v", err)
-// 			}
+	test.ProverSucceeded(t, appCircuit, appCircuitAssignment, in)
+}
 
-// 			test.ProverSucceeded(t, tc.circuit, tc.circuit, circuitInput)
-// 		})
-// 	}
-// }
+func TestE2E(t *testing.T) {
+	app, err := sdk.NewBrevisApp()
+	if err != nil {
+		t.Fatalf("Failed to create BrevisApp: %v", err)
+	}
+
+	poolId := sdk.Bytes32{Val: [2]frontend.Variable{
+		frontend.Variable("0x0000000000000000000000000000000000000000"),
+		frontend.Variable("0x000000000000000000000001"),
+	}}
+
+	// Initialize AppCircuit
+	appCircuit := &AppCircuit{
+		PoolId: poolId,
+	}
+	appCircuitAssignment := &AppCircuit{
+		PoolId: poolId,
+	}
+
+	in, err := app.BuildCircuitInput(appCircuit)
+	if err != nil {
+		t.Fatalf("Failed to build circuit input: %v", err)
+	}
+
+	// Test prover
+	test.ProverSucceeded(t, appCircuit, appCircuitAssignment, in)
+
+	// Compile circuit
+	outDir := t.TempDir()
+	srsDir := t.TempDir()
+	compiledCircuit, pk, vk, err := sdk.Compile(appCircuit, outDir, srsDir)
+	if err != nil {
+		t.Fatalf("Failed to compile circuit: %v", err)
+	}
+
+	// Generate proof
+	witness, publicWitness, err := sdk.NewFullWitness(appCircuitAssignment, in)
+	if err != nil {
+		t.Fatalf("Failed to generate witness: %v", err)
+	}
+	proof, err := sdk.Prove(compiledCircuit, pk, witness)
+	if err != nil {
+		t.Fatalf("Failed to generate proof: %v", err)
+	}
+
+	// Verify proof
+	err = sdk.Verify(vk, publicWitness, proof)
+	if err != nil {
+		t.Fatalf("Failed to verify proof: %v", err)
+	}
+}

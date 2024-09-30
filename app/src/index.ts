@@ -25,7 +25,7 @@ async function updatePoolFees(poolId: string) {
     try {
         console.log('Fetching historical events...');
         const apiUrl = `https://api-testnet.bscscan.com/api?module=logs&action=getLogs&fromBlock=0&address=${HOOK_ADDRESS}&topic0=${ethers.utils.id(
-            'PoolDataUpdated(bytes32,uint256,uint256,uint256,uint256)',
+            'PoolDataUpdated(bytes32,uint256,uint256,uint256,uint256,uint256,uint256)',
         )}&topic0_1_opr=and&topic1=${ethers.utils.hexZeroPad(poolId, 32)}&apikey=${BSC_SCAN_API_KEY}`;
 
         const response = await axios.get(apiUrl);
@@ -84,6 +84,11 @@ async function updatePoolFees(poolId: string) {
         await brevis.wait(brevisRes.queryKey, 97);
 
         console.log(`Fee update submitted for pool ${poolId}`);
+
+        // Update fees on-chain
+        const tx = await hookContract.updateFees(poolId, proofRes.proof);
+        await tx.wait();
+        console.log(`Fees updated on-chain for pool ${poolId}`);
     } catch (err) {
         console.error(`Error processing pool ${poolId}:`, err);
         if (err instanceof Error) {
