@@ -5,37 +5,53 @@ import (
 )
 
 type AppCircuit struct {
-    PoolId                    sdk.Bytes32
-    CurrentTradingFee         sdk.Uint248
-    CurrentLPFee              sdk.Uint248
-    Token0Balance             sdk.Uint248
-    Token1Balance             sdk.Uint248
-    HistoricalVolumes         [30]sdk.Uint248
-    HistoricalVolatilities    [30]sdk.Uint248
-    TotalLiquidity            sdk.Uint248
-    HistoricalLiquidities     [30]sdk.Uint248
-    ImpermanentLoss           sdk.Uint248
-    HistoricalImpermanentLosses [30]sdk.Uint248
-    ExternalMarketTrend       sdk.Uint248  
+    PoolId sdk.Bytes32
 }
 
 var _ sdk.AppCircuit = &AppCircuit{}
 
 func (c *AppCircuit) Allocate() (maxReceipts, maxSlots, maxTransactions int) {
-    return 0, 0, 0
+    return 30, 0, 0 // Assuming we need up to 30 receipts for historical data
 }
 
 func (c *AppCircuit) Define(api *sdk.CircuitAPI, input sdk.DataInput) error {
     u248 := api.Uint248
+    receipts := sdk.NewDataStream(api, input.Receipts)
 
-    // Calculate advanced metrics
-    volumeTrend := calculateTrend(api, c.HistoricalVolumes[:])
-    volatilityTrend := calculateTrend(api, c.HistoricalVolatilities[:])
-    liquidityTrend := calculateTrend(api, c.HistoricalLiquidities[:])
-    impermanentLossTrend := calculateTrend(api, c.HistoricalImpermanentLosses[:])
+    // Constants
+    hookAddress := api.ToBytes32(sdk.ConstBytes32([]byte{0xCb, 0x38, 0xF6, 0x97, 0x00, 0x54, 0xD3, 0x26, 0xEc, 0xc8, 0x9e, 0xf2, 0x48, 0x62, 0x5b, 0x52, 0x8f, 0xfC, 0xAa, 0x5f}))
+    poolDataUpdatedEventID := api.ToUint248(sdk.ConstUint248("0xd0f41fd5b4d393ea3222f2ecd77d99386e8ad292339ad0bbc6e3e5530e5e059e"))
 
-    // Calculate liquidity utilization
-    utilization := calculateUtilization(api, c.Token0Balance, c.Token1Balance, c.TotalLiquidity)
+    // Assert that all receipts are from the HOOK_ADDRESS and have the correct event ID
+    sdk.AssertEach(receipts, func(receipt sdk.Receipt) sdk.Uint248 {
+        return u248.And(
+            api.Bytes32.IsEqual(api.ToBytes32(receipt.Fields[0].Contract), hookAddress),
+            u248.IsEqual(receipt.Fields[0].EventID, poolDataUpdatedEventID),
+        )
+    })
+
+    // Extract data from receipts
+    historicalVolumes := sdk.Map(receipts, func(receipt sdk.Receipt) sdk.Uint248 {
+        return api.ToUint248(receipt.Fields[0].Value)
+    })
+    historicalVolatilities := sdk.Map(receipts, func(receipt sdk.Receipt) sdk.Uint248 {
+        return api.ToUint248(receipt.Fields[1].Value)
+    })
+    historicalLiquidities := sdk.Map(receipts, func(receipt sdk.Receipt) sdk.Uint248 {
+        return api.ToUint248(receipt.Fields[2].Value)
+    })
+    historicalImpermanentLosses := sdk.Map(receipts, func(receipt sdk.Receipt) sdk.Uint248 {
+        return api.ToUint248(receipt.Fields[3].Value)
+    })
+
+    // Calculate metrics
+    volumeTrend := calculateTrend(api, historicalVolumes)
+    volatilityTrend := calculateTrend(api, historicalVolatilities)
+    liquidityTrend := calculateTrend(api, historicalLiquidities)
+    impermanentLossTrend := calculateTrend(api, historicalImpermanentLosses)
+
+    // Calculate utilization
+    utilization := calculateUtilization(api, historicalLiquidities)
 
     // Define base fees and adjustment factors
     baseTradingFee := sdk.ConstUint248(2000) // 0.2%
@@ -43,8 +59,9 @@ func (c *AppCircuit) Define(api *sdk.CircuitAPI, input sdk.DataInput) error {
     maxAdjustment := sdk.ConstUint248(500) // 0.05%
 
     // Calculate fee adjustments
-    tradingFeeAdjustment := calculateFeeAdjustment(api, volumeTrend, volatilityTrend, utilization, c.ExternalMarketTrend)
-    lpFeeAdjustment := calculateFeeAdjustment(api, liquidityTrend, impermanentLossTrend, utilization, c.ExternalMarketTrend)
+    externalMarketTrend := sdk.ConstUint248(5000) // Default value
+    tradingFeeAdjustment := calculateFeeAdjustment(api, volumeTrend, volatilityTrend, utilization, externalMarketTrend)
+    lpFeeAdjustment := calculateFeeAdjustment(api, liquidityTrend, impermanentLossTrend, utilization, externalMarketTrend)
 
     // Apply adjustments
     newTradingFee := u248.Add(baseTradingFee, u248.Mul(tradingFeeAdjustment, maxAdjustment))
@@ -62,26 +79,25 @@ func (c *AppCircuit) Define(api *sdk.CircuitAPI, input sdk.DataInput) error {
     return nil
 }
 
-func calculateTrend(api *sdk.CircuitAPI, values []sdk.Uint248) sdk.Uint248 {
+func calculateTrend(api *sdk.CircuitAPI, values *sdk.DataStream[sdk.Uint248]) sdk.Uint248 {
     u248 := api.Uint248
-    recentAvg := average(api, values[20:])
-    oldAvg := average(api, values[:20])    
+    recentAvg := sdk.Mean(sdk.RangeUnderlying(values, 0, 10))
+    oldAvg := sdk.Mean(sdk.RangeUnderlying(values, 20, 30))
     return u248.Sub(recentAvg, oldAvg)
 }
 
-func calculateUtilization(api *sdk.CircuitAPI, token0Balance, token1Balance, totalLiquidity sdk.Uint248) sdk.Uint248 {
+func calculateUtilization(api *sdk.CircuitAPI, liquidities *sdk.DataStream[sdk.Uint248]) sdk.Uint248 {
     u248 := api.Uint248
-    usedLiquidity := u248.Add(token0Balance, token1Balance)
+    currentLiquidity := sdk.GetUnderlying(liquidities, 0)
+    maxLiquidity := sdk.Max(liquidities)
     
-    isZero := u248.IsZero(totalLiquidity)
+    isZero := u248.IsZero(maxLiquidity)
     
+    quotient, _ := u248.Div(currentLiquidity, maxLiquidity)
     return u248.Select(
         isZero,
         sdk.ConstUint248(0),
-        func() sdk.Uint248 {
-            quotient, _ := u248.Div(usedLiquidity, totalLiquidity)
-            return quotient
-        }(),
+        quotient,
     )
 }
 
@@ -89,26 +105,6 @@ func calculateFeeAdjustment(api *sdk.CircuitAPI, trend1, trend2, utilization, ex
     u248 := api.Uint248
     internalFactor := u248.Add(trend1, trend2)
     return u248.Add(u248.Mul(internalFactor, sdk.ConstUint248(3)), u248.Add(utilization, externalTrend))
-}
-
-func average(api *sdk.CircuitAPI, values []sdk.Uint248) sdk.Uint248 {
-    u248 := api.Uint248
-    sum := sdk.ConstUint248(0)
-    for _, value := range values {
-        sum = u248.Add(sum, value)
-    }
-    
-    length := sdk.ConstUint248(uint64(len(values)))
-    isZero := u248.IsZero(length)
-    
-    return u248.Select(
-        isZero,
-        sdk.ConstUint248(0),
-        func() sdk.Uint248 {
-            quotient, _ := u248.Div(sum, length)
-            return quotient
-        }(),
-    )
 }
 
 func clampFee(api *sdk.CircuitAPI, fee sdk.Uint248) sdk.Uint248 {

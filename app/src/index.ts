@@ -1,8 +1,8 @@
-import { Brevis, ProofRequest, Prover, asBytes32, asUint248 } from 'brevis-sdk-typescript';
+import { Brevis, ProofRequest, Prover, asBytes32, ReceiptData, Field } from 'brevis-sdk-typescript';
 import { ethers } from 'ethers';
 import { abi as HOOK_ABI } from './DynamicFeeAdjustmentHook.json';
-import axios from 'axios';
 import dotenv from 'dotenv';
+import axios from 'axios';
 
 dotenv.config();
 
@@ -11,6 +11,7 @@ const RPC_URL = process.env.RPC_URL || 'https://bsc-testnet.public.blastapi.io';
 const PRIVATE_KEY = process.env.PRIVATE_KEY || '';
 const BREVIS_ENDPOINT = process.env.BREVIS_ENDPOINT || 'appsdkv2.brevis.network:9094';
 const PROVER_ENDPOINT = process.env.PROVER_ENDPOINT || 'localhost:33247';
+const BSC_SCAN_API_KEY = process.env.BSC_SCAN_API_KEY || '';
 
 async function updatePoolFees(poolId: string) {
     const prover = new Prover(PROVER_ENDPOINT);
@@ -22,49 +23,44 @@ async function updatePoolFees(poolId: string) {
     const hookContract = new ethers.Contract(HOOK_ADDRESS, HOOK_ABI, signer);
 
     try {
-        console.log('Fetching pool data...');
-        const poolData = await hookContract.getPoolData(poolId);
-        console.log('Pool data fetched successfully');
-        console.log('Pool Data:', {
-            currentTradingFee: poolData.currentTradingFee.toString(),
-            currentLPFee: poolData.currentLPFee.toString(),
-            token0Balance: poolData.token0Balance.toString(),
-            token1Balance: poolData.token1Balance.toString(),
-            totalLiquidity: poolData.totalLiquidity.toString(),
-            impermanentLoss: poolData.impermanentLoss.toString(),
-            historicalVolumes: poolData.historicalVolumes.map((v: any) => v.toString()),
-            historicalVolatilities: poolData.historicalVolatilities.map((v: any) => v.toString()),
-            historicalLiquidities: poolData.historicalLiquidities.map((v: any) => v.toString()),
-            historicalImpermanentLosses: poolData.historicalImpermanentLosses.map((v: any) => v.toString()),
-        });
+        console.log('Fetching historical events...');
+        const apiUrl = `https://api-testnet.bscscan.com/api?module=logs&action=getLogs&fromBlock=0&address=${HOOK_ADDRESS}&topic0=${ethers.utils.id(
+            'PoolDataUpdated(bytes32,uint256,uint256,uint256,uint256)',
+        )}&topic0_1_opr=and&topic1=${ethers.utils.hexZeroPad(poolId, 32)}&apikey=${BSC_SCAN_API_KEY}`;
 
-        console.log('Fetching external market trend...');
-        const externalMarketTrend = await fetchExternalMarketTrend();
-        console.log('External market trend fetched successfully:', externalMarketTrend);
+        const response = await axios.get(apiUrl);
+        const events = response.data.result;
 
-        const ensureNonZero = (value: ethers.BigNumber) => (value.eq(0) ? ethers.utils.parseUnits('1', 'wei') : value);
+        console.log(`Fetched ${events.length} events`);
+
+        if (events.length === 0) {
+            console.log('No events found. Skipping proof generation.');
+            return;
+        }
 
         console.log('Preparing proof request...');
         proofReq.setCustomInput({
             PoolId: asBytes32(poolId),
-            CurrentTradingFee: asUint248(poolData.currentTradingFee.toString()),
-            CurrentLPFee: asUint248(poolData.currentLPFee.toString()),
-            Token0Balance: asUint248(ensureNonZero(poolData.token0Balance).toString()),
-            Token1Balance: asUint248(ensureNonZero(poolData.token1Balance).toString()),
-            HistoricalVolumes: poolData.historicalVolumes.map((v: any) => asUint248(ensureNonZero(v).toString())),
-            HistoricalVolatilities: poolData.historicalVolatilities.map((v: any) =>
-                asUint248(ensureNonZero(v).toString()),
-            ),
-            TotalLiquidity: asUint248(ensureNonZero(poolData.totalLiquidity).toString()),
-            HistoricalLiquidities: poolData.historicalLiquidities.map((v: any) =>
-                asUint248(ensureNonZero(v).toString()),
-            ),
-            ImpermanentLoss: asUint248(ensureNonZero(poolData.impermanentLoss).toString()),
-            HistoricalImpermanentLosses: poolData.historicalImpermanentLosses.map((v: any) =>
-                asUint248(ensureNonZero(v).toString()),
-            ),
-            ExternalMarketTrend: asUint248(externalMarketTrend.toString()),
         });
+
+        for (const event of events) {
+            const receiptData = new ReceiptData({
+                block_num: parseInt(event.blockNumber, 16),
+                tx_hash: event.transactionHash,
+                fields: [
+                    new Field({
+                        contract: HOOK_ADDRESS,
+                        log_index: parseInt(event.logIndex, 16),
+                        event_id: event.topics[0],
+                        value: event.data,
+                        is_topic: false,
+                        field_index: 0,
+                    }),
+                ],
+            });
+            proofReq.addReceipt(receiptData);
+        }
+
         console.log('Proof request prepared successfully');
         console.log(`Generating proof for pool ${poolId}`);
         const proofRes = await prover.prove(proofReq);
@@ -94,22 +90,6 @@ async function updatePoolFees(poolId: string) {
             console.error('Error details:', err.message);
             console.error('Stack trace:', err.stack);
         }
-    }
-}
-
-async function fetchExternalMarketTrend(): Promise<number> {
-    try {
-        const response = await axios.get('https://api.coingecko.com/api/v3/global');
-        const marketData = response.data.data;
-
-        // Calculate trends
-        const marketCapChange = marketData.market_cap_change_percentage_24h_usd;
-
-        // Normalize the trend
-        return Math.max(0, Math.min(10000, Math.floor((marketCapChange + 10) * 500)));
-    } catch (error) {
-        console.error('Error fetching external market data:', error);
-        return 5000;
     }
 }
 
