@@ -20,7 +20,7 @@ func (c *AppCircuit) Define(api *sdk.CircuitAPI, input sdk.DataInput) error {
 
 	// Constants
 	hookAddress := api.ToBytes32(sdk.ConstBytes32([]byte{0xCb, 0x38, 0xF6, 0x97, 0x00, 0x54, 0xD3, 0x26, 0xEc, 0xc8, 0x9e, 0xf2, 0x48, 0x62, 0x5b, 0x52, 0x8f, 0xfC, 0xAa, 0x5f}))
-	poolDataUpdatedEventID := api.ToUint248(sdk.ConstUint248("0xd0f41fd5b4d393ea3222f2ecd77d99386e8ad292339ad0bbc6e3e5530e5e059e"))
+	poolDataUpdatedEventID := api.ToUint248(sdk.ConstUint248("0x5613edd3b2ac1605c115fd63faf586543494584a8153be2623aec3377a567128"))
 
 	// Assert that all receipts are from the HOOK_ADDRESS and have the correct event ID
 	sdk.AssertEach(receipts, func(receipt sdk.Receipt) sdk.Uint248 {
