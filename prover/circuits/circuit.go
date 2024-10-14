@@ -59,9 +59,8 @@ func (c *AppCircuit) Define(api *sdk.CircuitAPI, input sdk.DataInput) error {
 	maxAdjustment := sdk.ConstUint248(500) // 0.05%
 
 	// Calculate fee adjustments
-	externalMarketTrend := sdk.ConstUint248(5000) // Default value
-	tradingFeeAdjustment := calculateFeeAdjustment(api, volumeTrend, volatilityTrend, utilization, externalMarketTrend)
-	lpFeeAdjustment := calculateFeeAdjustment(api, liquidityTrend, impermanentLossTrend, utilization, externalMarketTrend)
+	tradingFeeAdjustment := calculateFeeAdjustment(api, volumeTrend, volatilityTrend, utilization)
+	lpFeeAdjustment := calculateFeeAdjustment(api, liquidityTrend, impermanentLossTrend, utilization)
 
 	// Apply adjustments
 	newTradingFee := u248.Add(baseTradingFee, u248.Mul(tradingFeeAdjustment, maxAdjustment))
@@ -101,10 +100,10 @@ func calculateUtilization(api *sdk.CircuitAPI, liquidities *sdk.DataStream[sdk.U
 	)
 }
 
-func calculateFeeAdjustment(api *sdk.CircuitAPI, trend1, trend2, utilization, externalTrend sdk.Uint248) sdk.Uint248 {
+func calculateFeeAdjustment(api *sdk.CircuitAPI, trend1, trend2, utilization sdk.Uint248) sdk.Uint248 {
 	u248 := api.Uint248
 	internalFactor := u248.Add(trend1, trend2)
-	return u248.Add(u248.Mul(internalFactor, sdk.ConstUint248(3)), u248.Add(utilization, externalTrend))
+	return u248.Add(u248.Mul(internalFactor, sdk.ConstUint248(3)), utilization)
 }
 
 func clampFee(api *sdk.CircuitAPI, fee sdk.Uint248) sdk.Uint248 {

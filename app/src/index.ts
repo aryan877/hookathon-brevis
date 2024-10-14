@@ -84,11 +84,6 @@ async function updatePoolFees(poolId: string) {
         await brevis.wait(brevisRes.queryKey, 97);
 
         console.log(`Fee update submitted for pool ${poolId}`);
-
-        // Update fees on-chain
-        const tx = await hookContract.updateFees(poolId, proofRes.proof);
-        await tx.wait();
-        console.log(`Fees updated on-chain for pool ${poolId}`);
     } catch (err) {
         console.error(`Error processing pool ${poolId}:`, err);
         if (err instanceof Error) {
